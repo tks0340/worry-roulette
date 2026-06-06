@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#fff5f8">
+  <title>고민 룰렛</title>
+  <style>
+    :root {
+      --pink: #ff8faf;
+      --pink-dark: #f46691;
+      --cream: #fffaf2;
+      --ink: #665462;
+      --shadow: 0 12px 28px rgba(159, 108, 130, .18);
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      color: var(--ink);
+      font-family: "Pretendard", "Noto Sans KR", system-ui, sans-serif;
+      background:
+        radial-gradient(circle at 15% 8%, #fff 0 4%, transparent 4.5%),
+        radial-gradient(circle at 85% 18%, #fff 0 3%, transparent 3.5%),
+        linear-gradient(155deg, #fff1f6 0%, #f4f1ff 52%, #effcff 100%);
+    }
+
+    button, input { font: inherit; }
+    button { cursor: pointer; border: 0; touch-action: manipulation; }
+
+    .app {
+      width: min(100%, 470px);
+      min-height: 100dvh;
+      margin: auto;
+      padding: max(12px, env(safe-area-inset-top)) 14px max(16px, env(safe-area-inset-bottom));
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    header { width: 100%; text-align: center; }
+    h1 { margin: 2px 0 1px; color: #e96792; font-size: clamp(23px, 7vw, 30px); letter-spacing: -.06em; }
+    .subtitle { margin: 0; font-size: 13px; color: #9b8895; }
+
+    .stage {
+      position: relative;
+      width: min(82vw, 330px);
+      aspect-ratio: 1;
+      margin: 14px auto 8px;
+      display: grid;
+      place-items: center;
+    }
+
+    .glow {
+      position: absolute;
+      inset: 5%;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .7);
+      box-shadow: 0 0 0 8px rgba(255,255,255,.45), var(--shadow);
+      transition: .3s;
+    }
+
+    .stage.spinning .glow { animation: glowPulse .65s ease-in-out infinite; }
+
+    .pointer {
+      position: absolute;
+      z-index: 5;
+      top: -3px;
+      width: 46px;
+      height: 55px;
+      filter: drop-shadow(0 4px 3px rgba(136, 83, 104, .25));
+      transform-origin: 50% 20%;
+    }
+
+    .pointer::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 5px;
+      width: 36px;
+      height: 36px;
+      background: #ff6f9c;
+      border-radius: 50% 50% 45% 45%;
+      transform: rotate(45deg);
+    }
+
+    .pointer::after {
+      content: "";
+      position: absolute;
+      left: 15px;
+      bottom: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-top: 23px solid #ff6f9c;
+    }
+
+    .stage.spinning .pointer { animation: pointerBeat .42s ease-in-out infinite; }
+
+    #wheel {
+      position: relative;
+      z-index: 2;
+      width: 91%;
+      height: 91%;
+      border-radius: 50%;
+      border: 7px solid #fff;
+      box-shadow: 0 8px 20px rgba(127, 93, 117, .22);
+      transform: rotate(0deg);
+    }
+
+    .hub {
+      position: absolute;
+      z-index: 4;
+      width: 21%;
+      aspect-ratio: 1;
+      border: 5px solid white;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: white;
+      font-size: clamp(22px, 7vw, 31px);
+      background: linear-gradient(145deg, #ff9fbd, #ff719c);
+      box-shadow: 0 5px 12px rgba(145, 84, 110, .25);
+    }
+
+    .status {
+      min-height: 30px;
+      margin: 0 0 8px;
+      font-weight: 800;
+      color: #e56991;
+      text-align: center;
+      letter-spacing: -.03em;
+    }
+
+    .actions {
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+      gap: 9px;
+    }
+
+    .main-btn, .sub-btn {
+      min-width: 0;
+      min-height: 52px;
+      border-radius: 17px;
+      font-weight: 900;
+      box-shadow: 0 7px 0 rgba(182, 115, 143, .17);
+      transition: transform .12s, box-shadow .12s;
+    }
+
+    .main-btn {
+      color: white;
+      background: linear-gradient(135deg, #ff91b2, #ff709f);
+      font-size: 18px;
+    }
+
+    .sub-btn { color: #7b6876; background: rgba(255,255,255,.82); }
+    button:active { transform: translateY(4px); box-shadow: 0 2px 0 rgba(182, 115, 143, .15); }
+    button:disabled { opacity: .55; cursor: default; }
+
+    .count { margin-top: 10px; font-size: 12px; color: #a28d9b; }
+
+    .overlay {
+      position: fixed;
+      z-index: 20;
+      inset: 0;
+      padding: 18px 14px max(14px, env(safe-area-inset-bottom));
+      display: grid;
+      align-items: end;
+      background: rgba(83, 64, 78, .32);
+      backdrop-filter: blur(5px);
+      visibility: hidden;
+      opacity: 0;
+      transition: .2s;
+    }
+
+    .overlay.open { visibility: visible; opacity: 1; }
+
+    .sheet {
+      width: min(100%, 470px);
+      max-height: 82dvh;
+      margin: auto;
+      padding: 18px 15px 15px;
+      overflow: auto;
+      border-radius: 25px;
+      background: #fffafc;
+      box-shadow: var(--shadow);
+      transform: translateY(25px);
+      transition: .25s;
+    }
+
+    .overlay.open .sheet { transform: translateY(0); }
+    .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    h2 { margin: 0; font-size: 20px; color: #df698f; }
+    .close-btn { width: 42px; height: 42px; border-radius: 14px; color: #8b7382; background: #f6eaf0; font-size: 20px; }
+
+    .add-row { display: grid; grid-template-columns: minmax(0, 1fr) 58px; gap: 8px; margin: 14px 0 10px; }
+    input {
+      min-width: 0;
+      height: 47px;
+      padding: 0 13px;
+      border: 2px solid #f2dce7;
+      border-radius: 14px;
+      outline: none;
+      color: var(--ink);
+      background: white;
+    }
+    input:focus { border-color: #ff9cba; }
+    .add-btn { border-radius: 14px; color: white; background: #ff8eaf; font-weight: 900; }
+
+    #itemList { display: grid; gap: 7px; }
+    .item {
+      min-width: 0;
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr) 40px;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 7px 7px 10px;
+      border: 1px solid #f3e3eb;
+      border-radius: 14px;
+      background: white;
+    }
+    .dot { width: 13px; height: 13px; border-radius: 50%; }
+    .item input { height: 38px; padding: 0 8px; border: 0; background: #fffafd; }
+    .delete-btn { width: 38px; height: 38px; border-radius: 12px; color: #bd7f93; background: #fff0f4; }
+    .editor-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+    .editor-actions button { min-height: 45px; border-radius: 14px; font-weight: 800; color: #816c79; background: #f5ebf1; }
+    .editor-actions .done { color: white; background: #ff83aa; }
+    .hint { margin: 9px 2px 0; font-size: 11px; color: #aa929f; }
+
+    .result-pop {
+      position: fixed;
+      z-index: 30;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      pointer-events: none;
+      visibility: hidden;
+      opacity: 0;
+      background: rgba(255, 244, 248, .42);
+      backdrop-filter: blur(3px);
+      transition: .25s;
+    }
+    .result-pop.show { visibility: visible; opacity: 1; pointer-events: auto; }
+    .result-card {
+      width: min(100%, 350px);
+      padding: 24px 18px 18px;
+      border: 5px solid white;
+      border-radius: 30px;
+      text-align: center;
+      background: linear-gradient(145deg, #fff7fb, #f6f2ff);
+      box-shadow: 0 18px 45px rgba(138, 92, 117, .28);
+      transform: scale(.7);
+      transition: .35s cubic-bezier(.2, 1.4, .4, 1);
+    }
+    .result-pop.show .result-card { transform: scale(1); }
+    .result-heart { font-size: 50px; animation: pointerBeat .7s ease-in-out infinite; }
+    .result-label { margin: 5px 0; color: #a08696; font-size: 13px; }
+    .result-text { margin: 7px 0 18px; color: #e25e8a; font-size: clamp(25px, 8vw, 34px); font-weight: 950; word-break: keep-all; }
+    .result-btn { width: 100%; min-height: 49px; border-radius: 16px; color: white; background: #ff82a8; font-weight: 900; }
+
+    .confetti { position: fixed; z-index: 31; top: -20px; width: 10px; height: 16px; border-radius: 4px; pointer-events: none; animation: fall 2.2s linear forwards; }
+
+    @keyframes pointerBeat { 0%, 100% { transform: scale(1); } 45% { transform: scale(1.18); } }
+    @keyframes glowPulse { 0%, 100% { box-shadow: 0 0 0 8px rgba(255,255,255,.45), 0 0 20px rgba(255,132,173,.2); } 50% { box-shadow: 0 0 0 14px rgba(255,255,255,.3), 0 0 36px rgba(255,132,173,.6); } }
+    @keyframes fall { to { transform: translate(var(--drift), 110dvh) rotate(720deg); } }
+
+    @media (max-height: 690px) {
+      .app { padding-top: 7px; }
+      .stage { width: min(70dvh, 77vw, 290px); margin-top: 8px; margin-bottom: 3px; }
+      .subtitle, .count { font-size: 11px; }
+      .main-btn, .sub-btn { min-height: 48px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>오늘의 고민 룰렛</h1>
+      <p class="subtitle">결정은 룰렛에게 맡기고 마음은 가볍게!</p>
+    </header>
+
+    <section class="stage" id="stage" aria-label="고민 룰렛">
+      <div class="glow"></div>
+      <div class="pointer" aria-hidden="true"></div>
+      <canvas id="wheel"></canvas>
+      <div class="hub" aria-hidden="true">♥</div>
+    </section>
+
+    <p class="status" id="status" aria-live="polite">무엇이 나올까? 두근두근!</p>
+    <div class="actions">
+      <button class="main-btn" id="spinBtn">두근두근 돌리기</button>
+      <button class="sub-btn" id="editBtn">목록 수정</button>
+    </div>
+    <div class="count" id="count"></div>
+  </main>
+
+  <div class="overlay" id="editor" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+    <section class="sheet">
+      <div class="sheet-head">
+        <h2 id="editorTitle">고민 목록 수정</h2>
+        <button class="close-btn" id="closeEditor" aria-label="닫기">×</button>
+      </div>
+      <div class="add-row">
+        <input id="newItem" maxlength="24" placeholder="새 선택지를 입력하세요">
+        <button class="add-btn" id="addBtn">추가</button>
+      </div>
+      <div id="itemList"></div>
+      <div class="editor-actions">
+        <button id="shuffleBtn">순서 섞기</button>
+        <button class="done" id="doneBtn">완료</button>
+      </div>
+      <p class="hint">선택지는 2개 이상, 최대 10개까지 저장할 수 있어요.</p>
+    </section>
+  </div>
+
+  <div class="result-pop" id="resultPop" role="dialog" aria-modal="true" aria-labelledby="resultText">
+    <div class="result-card">
+      <div class="result-heart">💗</div>
+      <div class="result-label">룰렛의 선택은</div>
+      <div class="result-text" id="resultText"></div>
+      <button class="result-btn" id="resultBtn">이걸로 결정!</button>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "worryRouletteItemsV1";
+    const DEFAULT_ITEMS = ["맛있는 거 먹기", "산책하기", "영화 보기", "일단 쉬기", "친구에게 물어보기", "오늘 바로 시작하기"];
+    const COLORS = ["#ffabc2", "#ffd39e", "#fff0a8", "#bce8c8", "#aee2ee", "#cfc3f4", "#f4bde4", "#bcd5fa", "#ffc4b4", "#d7e9ae"];
+    const wheel = document.getElementById("wheel");
+    const ctx = wheel.getContext("2d");
+    const stage = document.getElementById("stage");
+    const statusEl = document.getElementById("status");
+    const countEl = document.getElementById("count");
+    const spinBtn = document.getElementById("spinBtn");
+    const editor = document.getElementById("editor");
+    const itemList = document.getElementById("itemList");
+    const newItem = document.getElementById("newItem");
+    const resultPop = document.getElementById("resultPop");
+    const resultText = document.getElementById("resultText");
+    let items = loadItems();
+    let rotation = 0;
+    let spinning = false;
+    let audioContext;
+
+    function loadItems() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        if (Array.isArray(saved)) {
+          const clean = saved.map(value => String(value).trim()).filter(Boolean).slice(0, 10);
+          if (clean.length >= 2) return clean;
+        }
+      } catch (error) {
+        console.warn("저장 목록을 불러오지 못해 기본 목록을 사용합니다.", error);
+      }
+      return [...DEFAULT_ITEMS];
+    }
+
+    function saveItems() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(items)); }
+      catch (error) { console.warn("목록을 저장하지 못했습니다.", error); }
+    }
+
+    function drawWheel() {
+      const size = Math.max(260, Math.round(wheel.getBoundingClientRect().width));
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      wheel.width = size * dpr;
+      wheel.height = size * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, size, size);
+      const center = size / 2;
+      const radius = center - 2;
+      const arc = Math.PI * 2 / items.length;
+      const fontSize = items.length > 8 ? 11 : items.length > 6 ? 12 : 14;
+
+      items.forEach((item, index) => {
+        const start = -Math.PI / 2 + index * arc;
+        ctx.beginPath();
+        ctx.moveTo(center, center);
+        ctx.arc(center, center, radius, start, start + arc);
+        ctx.closePath();
+        ctx.fillStyle = COLORS[index % COLORS.length];
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,.8)";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        ctx.save();
+        ctx.translate(center, center);
+        ctx.rotate(start + arc / 2);
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#665462";
+        ctx.font = `800 ${fontSize}px "Noto Sans KR", sans-serif`;
+        const label = item.length > 10 ? item.slice(0, 9) + "…" : item;
+        ctx.fillText(label, radius - 17, 0, radius * .57);
+        ctx.restore();
+      });
+      countEl.textContent = `현재 선택지 ${items.length}개 · 목록은 자동 저장돼요`;
+    }
+
+    function renderEditor() {
+      itemList.innerHTML = "";
+      items.forEach((item, index) => {
+        const row = document.createElement("div");
+        row.className = "item";
+        row.innerHTML = `
+          <span class="dot" style="background:${COLORS[index % COLORS.length]}"></span>
+          <input aria-label="${index + 1}번 선택지" maxlength="24" value="">
+          <button class="delete-btn" aria-label="${item} 삭제">×</button>`;
+        const input = row.querySelector("input");
+        input.value = item;
+        input.addEventListener("change", () => {
+          const value = input.value.trim();
+          if (value) items[index] = value;
+          else input.value = items[index];
+          saveItems();
+          drawWheel();
+        });
+        row.querySelector("button").addEventListener("click", () => removeItem(index));
+        itemList.appendChild(row);
+      });
+    }
+
+    function addItem() {
+      const value = newItem.value.trim();
+      if (!value) return newItem.focus();
+      if (items.length >= 10) return showStatus("선택지는 최대 10개까지 가능해요!");
+      items.push(value);
+      newItem.value = "";
+      commitItems();
+      newItem.focus();
+    }
+
+    function removeItem(index) {
+      if (items.length <= 2) return showStatus("선택지는 2개 이상 필요해요!");
+      items.splice(index, 1);
+      commitItems();
+    }
+
+    function commitItems() {
+      saveItems();
+      renderEditor();
+      drawWheel();
+    }
+
+    function showStatus(message) {
+      statusEl.textContent = message;
+      statusEl.animate([{ transform: "scale(1)" }, { transform: "scale(1.08)" }, { transform: "scale(1)" }], { duration: 350 });
+    }
+
+    function beatSound(frequency = 120) {
+      try {
+        audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.frequency.value = frequency;
+        gain.gain.setValueAtTime(.05, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(.001, audioContext.currentTime + .11);
+        osc.connect(gain).connect(audioContext.destination);
+        osc.start();
+        osc.stop(audioContext.currentTime + .12);
+      } catch (_) {}
+    }
+
+    function spin() {
+      if (spinning || items.length < 2) return;
+      spinning = true;
+      spinBtn.disabled = true;
+      stage.classList.add("spinning");
+      const winnerIndex = Math.floor(Math.random() * items.length);
+      const arcDegrees = 360 / items.length;
+      const targetMod = -(winnerIndex + .5) * arcDegrees;
+      const currentMod = ((rotation % 360) + 360) % 360;
+      const targetNorm = ((targetMod % 360) + 360) % 360;
+      const extra = (targetNorm - currentMod + 360) % 360;
+      rotation += 360 * (6 + Math.floor(Math.random() * 3)) + extra;
+      wheel.style.transition = "transform 4.8s cubic-bezier(.12,.74,.14,1)";
+      wheel.style.transform = `rotate(${rotation}deg)`;
+
+      const messages = ["두근...", "두근두근...", "거의 다 왔어요!", "마음의 준비!"];
+      let tick = 0;
+      const timer = setInterval(() => {
+        statusEl.textContent = messages[Math.min(Math.floor(tick / 3), messages.length - 1)];
+        if (tick % 2 === 0) {
+          beatSound(115 + tick * 3);
+          if (navigator.vibrate) navigator.vibrate(18);
+        }
+        tick++;
+      }, 320);
+
+      setTimeout(() => {
+        clearInterval(timer);
+        spinning = false;
+        spinBtn.disabled = false;
+        stage.classList.remove("spinning");
+        showStatus(`결정 완료! ${items[winnerIndex]}`);
+        resultText.textContent = items[winnerIndex];
+        resultPop.classList.add("show");
+        beatSound(260);
+        if (navigator.vibrate) navigator.vibrate([70, 45, 120]);
+        makeConfetti();
+      }, 4900);
+    }
+
+    function makeConfetti() {
+      for (let i = 0; i < 34; i++) {
+        const bit = document.createElement("i");
+        bit.className = "confetti";
+        bit.style.left = `${Math.random() * 100}vw`;
+        bit.style.background = COLORS[i % COLORS.length];
+        bit.style.setProperty("--drift", `${Math.random() * 140 - 70}px`);
+        bit.style.animationDelay = `${Math.random() * .4}s`;
+        document.body.appendChild(bit);
+        setTimeout(() => bit.remove(), 2800);
+      }
+    }
+
+    document.getElementById("editBtn").addEventListener("click", () => {
+      renderEditor();
+      editor.classList.add("open");
+      setTimeout(() => newItem.focus(), 250);
+    });
+    document.getElementById("closeEditor").addEventListener("click", () => editor.classList.remove("open"));
+    document.getElementById("doneBtn").addEventListener("click", () => editor.classList.remove("open"));
+    document.getElementById("addBtn").addEventListener("click", addItem);
+    newItem.addEventListener("keydown", event => { if (event.key === "Enter") addItem(); });
+    document.getElementById("shuffleBtn").addEventListener("click", () => {
+      for (let i = items.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [items[i], items[j]] = [items[j], items[i]];
+      }
+      commitItems();
+    });
+    editor.addEventListener("click", event => { if (event.target === editor) editor.classList.remove("open"); });
+    spinBtn.addEventListener("click", spin);
+    document.getElementById("resultBtn").addEventListener("click", () => resultPop.classList.remove("show"));
+    resultPop.addEventListener("click", event => { if (event.target === resultPop) resultPop.classList.remove("show"); });
+    window.addEventListener("resize", drawWheel);
+    drawWheel();
+  </script>
+</body>
+</html>
